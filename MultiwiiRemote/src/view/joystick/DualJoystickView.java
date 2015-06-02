@@ -134,7 +134,6 @@ public class DualJoystickView extends LinearLayout {
 
     @Override
     public boolean dispatchTouchEvent(MotionEvent ev){
-        Log.d("DualJoystickView", "dispatch touch event");
         boolean l = stickL.dispatchTouchEvent(ev);
         boolean r = stickR.dispatchTouchEvent(ev);
         return true;

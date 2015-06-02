@@ -559,6 +559,14 @@ public class JoystickView extends View {
 		}
 	}
 
+    public void setCoordinateX(float touchX) {
+        if (!this.isPressed()) {
+            this.touchX = touchX;
+            reportOnMoved();
+            invalidate();
+        }
+    }
+
 	public void setCoordinates(float touchX, float touchY) {
 		if (!this.isPressed()) {
 			this.touchX = touchX;

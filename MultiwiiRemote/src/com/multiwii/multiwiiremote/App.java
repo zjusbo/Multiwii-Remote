@@ -259,7 +259,6 @@ public class App extends Application implements Sensors.MagAccListener {
 					Say("Low Signal " + signalStrength);
 				}
 			}
-
 		}
 		//TODO check low phone battery
 	}
@@ -307,6 +306,7 @@ public class App extends Application implements Sensors.MagAccListener {
 		this.SaveSettings();
 		this.sensors.stop();
 	}
+
 	public void stop() {
 		if(protocol != null) protocol.stop();
 		if (commMW != null) commMW.Close();

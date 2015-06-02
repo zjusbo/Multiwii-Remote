@@ -237,8 +237,12 @@ public abstract class MultirotorData {
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
-
-		mConnectedThread = new ConnectedThread(communication);
+        if(mConnectedThread != null){
+            mConnectedThread.myCancel();
+            mConnectedThread.interrupt();
+            mConnectedThread = null;
+        }
+		mConnectedThread = new ConnectedThread(connection);
 		//DO NOT START READING DATA SO FAR --- song bo
 		connection.Connected = true;
         mConnectedThread.start();
@@ -263,21 +267,24 @@ public abstract class MultirotorData {
 		mConnectedThread.write(out);
    }
 	public void stop() {
+        Log.d("stop", "stop");
 	stopThreads();
 	CloseLoggingFile();
 	}
 	private synchronized void stopThreads() {
 		//if (D)	Log.d(app.TAG, "stopThreads");
-
+        Log.d("stop", "stopThreads");
 		// Cancel any thread attempting to make a connection
 		if (mConnectThread != null) {
 			mConnectThread.cancel();
 			mConnectThread = null;
 		}
-
+        Log.d("stop", "" + mConnectedThread);
 		// Cancel any thread currently running a connection
 		if (mConnectedThread != null) {
-			mConnectedThread.cancel();
+            Log.d("stop", "myCancel");
+			mConnectedThread.myCancel();
+            mConnectedThread.interrupt();
 			mConnectedThread = null;
 		}
 		/*if (mConnectedWriteThread != null) {
@@ -364,7 +371,6 @@ public abstract class MultirotorData {
 			//Log.i(TAG, "BEGIN mConnectedReadThread");
             //reading data thread
 			while (connection.Connected) {
-                Log.d("ConnectedThead", "reading data");
 				ProcessSerialData(false);
 			}
 		}
@@ -372,8 +378,9 @@ public abstract class MultirotorData {
             connection.Write(buffer);
        }
 
-		public void cancel() {
+		public void myCancel() {
 			connection.Connected = false;
+            Log.d("stop", "myCancel");
 			connection.Close();
 		}
 	}
@@ -592,8 +599,10 @@ public abstract class MultirotorData {
 	}
 
 	public void CloseLoggingFile() {
-		if (FA != null)
+		if (FA != null){
 			FA.closeFile();
+            FA = null;
+        }
 	}
 
 }

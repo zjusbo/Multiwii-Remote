@@ -15,7 +15,7 @@
             android:layout_alignParentBottom="true"
             android:layout_alignParentLeft="true"
             android:layout_alignParentTop="true"
-            android:visibility="invisible" />
+            android:visibility="visible" />
         
         <RelativeLayout
             android:layout_width="match_parent"
@@ -120,7 +120,7 @@
         android:text="@string/phone_heading" />
 
             <view
-                android:layout_width="300dip"
+                android:layout_width="250dip"
                 android:layout_height="match_parent"
                 class="view.joystick.DualJoystickView"
                 android:id="@+id/DualJoystickView"
@@ -131,6 +131,25 @@
                 android:layout_toRightOf="@+id/aux1Btn"
                 android:layout_below="@+id/aux2Btn"
                 android:visibility="visible" />
+
+            <ToggleButton
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Synchronize Head"
+                android:textOff="Synchronize Head"
+                android:textOn="Synchronize Head"
+                android:id="@+id/synchronizeHeadButton"
+                android:layout_above="@+id/DualJoystickView"
+                android:layout_alignLeft="@+id/chkUsePhoneHeading"
+                android:checked="false" />
+
+            <view
+                android:layout_width="110dip"
+                android:layout_height="110dip"
+                class="view.Arrow.ArrowView"
+                android:id="@+id/ArrowView"
+                android:layout_below="@+id/throttleView"
+                android:layout_centerHorizontal="true" />
 
         </RelativeLayout>
 </RelativeLayout>

@@ -13,10 +13,13 @@ import android.util.Log;
 
 public class MainActivityCommunicationHandler extends Handler {
 	    private final WeakReference<MainActivity> mActivity;
+        //private final MainActivity mActivity;
 
 	    public MainActivityCommunicationHandler(MainActivity activity) {
 	      mActivity = new WeakReference<MainActivity>(activity);
-	    }
+          //  mActivity = activity;
+
+        }
 		@Override
 		public void handleMessage(Message msg) {
 			final MainActivity myNewActivity = mActivity.get();

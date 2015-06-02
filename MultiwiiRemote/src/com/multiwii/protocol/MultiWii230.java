@@ -223,7 +223,6 @@ public void Request(int[] codes) {
 			head = read16();
             setIs_ATTITUDE_received(true);
             attitudeReceivedTime = System.currentTimeMillis();
-            Log.d("aaa", "MSP_ATTITUDE: angx = " + angx + ",angy = " + angy + ",head = " + head);
 			break;
 		case MSP_ALTITUDE:
 			alt = ((float) read32() / 100) - AltCorrection;
@@ -361,20 +360,15 @@ public void Request(int[] codes) {
 
 	private void ReadFrame() {
 		DataFlow--;
-
 		while (communication.dataAvailable()) {
-			//It's a finite state machine .. MY GOD!!
-			//SONG BO
+			//It's a finite state machine ..
 			try {
 				c = (communication.Read());
-				Log.v("READ", "Data: " + c);
-
 			} catch (Exception e) {
 				c_state = IDLE;
 				Log.e("MultiwiiProtocol", "Read  = null");
 				break;
 			}
-
 			if (c_state == IDLE) {
 				c_state = (c == '$') ? HEADER_START : IDLE;
 			} else if (c_state == HEADER_START) {
@@ -427,12 +421,6 @@ public void Request(int[] codes) {
 							+ " expected, got " + (int) (c & 0xFF));
 					Log.e("Multiwii protocol", "<" + (cmd & 0xFF) + " "
 							+ (dataSize & 0xFF) + "> {");
-					// for (i = 0; i < dataSize; i++) {
-					// if (i != 0) {
-					// Log.e("Multiwii protocol"," ");
-					// }
-					// Log.e("Multiwii protocol",(inBuf[i] & 0xFF));
-					// }
 					Log.e("Multiwii protocol", "} [" + c + "]");
 					Log.e("Multiwii protocol", new String(inBuf, 0, dataSize));
 				}

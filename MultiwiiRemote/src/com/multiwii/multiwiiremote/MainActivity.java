@@ -1,8 +1,12 @@
 package com.multiwii.multiwiiremote;
 
 
+import view.Arrow.ArrowView;
 import view.joystick.DualJoystickView;
 import view.joystick.JoystickView;
+import view.mjpeg.MjpegView;
+
+import com.multiwii.Utilities.Camera;
 import com.multiwii.Utilities.Utilities;
 import com.multiwii.communication.DeviceListActivity;
 import android.os.Bundle;
@@ -22,26 +26,30 @@ public class MainActivity extends BaseActivity {
     private long requestStartTime;
     private boolean isReceived = true;
     private long lastRequestTime = 0;
+    private int packageSendNum = 0;
+    private int packageLostNum = 0;
+    private Camera mCam;
 
     private enum InputMode {
 		ACCELEROMETER, TOUCH
 	}
 
 	private InputMode inputMode = InputMode.TOUCH;
+    private ArrowView arrowView;
     private DualJoystickView dualJoystickView;
 	private ToggleButton auxBtn[] = new ToggleButton[4];
-	private TextView txtHeader;
+    private ToggleButton synchronizeHead;
+    private TextView txtHeader;
 	private TextView txtStatus;
 	private TextView txtUIDebug;
-    private long lastHeadingRefreshTime = 0;
-    private int thisHeading = 0;
     private int mwcHeading = 0;
-    private int lastValidateHeading =0;
-    private String debugTextTemplate = "%sPhone Heading: %d\nMWC Heading:%d\nDelay: %dms";
+    private float packageLostRate = 0;
+    private String debugTextTemplate = "%sPhone Heading: %d\nMWC Heading:%d\nDelay: %dms\nPackage Lost Rate: %f%%";
     private long delayTime = 0;
     private long [] delayTimeRaw = new long[5];
     private boolean isDelayTimeAvailable = false;
     private int delayTimeIdx = 0;
+    private boolean synchronizeHeadButton = false;
     public CheckBox getChkUsePhoneHeading() {
         return chkUsePhoneHeading;
     }
@@ -69,7 +77,7 @@ public class MainActivity extends BaseActivity {
 		KeepScreenOn(true);
 		
 		rc = new RCSignals();
-		// mCam = new Camera((MjpegView) this.findViewById(R.id.webcamView));
+		mCam = new Camera((MjpegView) this.findViewById(R.id.webcamView), this);
 		mEvents = new MainActivityEvents(this);
 		mHandler = new MainActivityCommunicationHandler(this);
 		
@@ -78,9 +86,10 @@ public class MainActivity extends BaseActivity {
 		txtUIDebug = (TextView) findViewById(R.id.debugTxt);
 		for (int x = 0; x < auxBtn.length; x++)
 			auxBtn[x] = (ToggleButton) findViewById(getResources().getIdentifier("aux" + (x + 1) + "Btn", "id",	getPackageName()));
+        synchronizeHead = (ToggleButton) findViewById(R.id.synchronizeHeadButton);
         dualJoystickView = (DualJoystickView) findViewById(R.id.DualJoystickView);
         chkUsePhoneHeading = (CheckBox) findViewById(R.id.chkUsePhoneHeading);
-		
+		arrowView = (ArrowView) findViewById(R.id.ArrowView);
 		Init();
 	}
 
@@ -88,7 +97,7 @@ public class MainActivity extends BaseActivity {
 		app.SetHandler(mHandler); //App class will automatically bind to commMW
         app.setMainActivity(this);
 		chkUsePhoneHeading.setOnCheckedChangeListener(mEvents.mCheckChangeListener);
-
+        arrowView.setMainActivity(this);
 		((Button) findViewById(R.id.switchModes)).setOnClickListener(mEvents.mClickListener);
 		//joystick.setOnJostickMovedListener(mEvents._listener);
         dualJoystickView.stickR.setOnJostickMovedListener(mEvents._listener);
@@ -99,7 +108,9 @@ public class MainActivity extends BaseActivity {
 			auxBtn[x].setOnClickListener(mEvents.mClickListener);
 		settingsModified();
 	}
-	
+	public boolean getConnectState(){
+        return app.commMW.Connected;
+    }
 	public void FrequentTasks() {
 		mHandler.sendEmptyMessage(7);
         //send RC signal
@@ -123,21 +134,48 @@ public class MainActivity extends BaseActivity {
                     }
                 lastRequestTime = currentTime;
                 app.protocol.SendRequestMSP_ATTITUDE();
+                packageSendNum++;
                 mwcHeading = app.protocol.head;
                 }
             //we consider it as a package lost, resend package
-            else if(currentTime - lastRequestTime > 300){
+            else if(currentTime - lastRequestTime > 50){
+                packageLostNum++;
+                packageSendNum++;
                 app.protocol.SendRequestMSP_ATTITUDE();
             }
-            app.protocol.SendRequestMSP_SET_RAW_RC(rc.get()); //TODO Check that delay isnt too big from other tasks
-            if (chkUsePhoneHeading.isChecked()){
-                    //refresh heading in every 500 mili seconds
-                    if( currentTime - lastHeadingRefreshTime > 500 ){
-                        thisHeading = app.sensors.heading;
-                        app.protocol.SendRequestMSP_SET_HEAD(thisHeading);
-                        lastHeadingRefreshTime = currentTime;
-                    }
+            if(packageSendNum >= 100){
+                packageLostRate = (float)packageLostNum / packageSendNum * 100;
+                packageLostNum = packageSendNum = 0;
+            }
+
+            //synchronize heading of plane and phone,
+            //currently using Proportion (without Integration and Differential)
+            if(synchronizeHead.isChecked()){
+                synchronizeHeadButton = true;
+                int yawOffsetRange = 70;
+                double yawOffset = calYawOffset(app.sensors.heading, mwcHeading, 1, 0.1, yawOffsetRange);
+                this.rc.setAdjustedYaw((int)yawOffset);
+           }
+            else{
+                if(synchronizeHeadButton == true){
+                    this.rc.setAdjustedYaw(0);
+                    synchronizeHeadButton = false;
                 }
+            }
+            //send rc signal
+            app.protocol.SendRequestMSP_SET_RAW_RC(rc.get()); //TODO Check that delay isnt too big from other tasks
+
+            //set MWC Headings in every 500 miliseconds
+//            if (chkUsePhoneHeading.isChecked()){
+//                    //refresh heading in every 500 mili seconds
+//                    if( currentTime - lastHeadingRefreshTime > 500 ){
+//                        thisHeading = app.sensors.heading;
+//                        app.protocol.SendRequestMSP_SET_HEAD(thisHeading);
+//                        lastHeadingRefreshTime = currentTime;
+//                    }
+//                }
+
+
             //SONG BO ADD BEGIN---------------------------------
 
             //data transmitted from MWC to Phone is processed in ProcessSerialData() in ConnectedThread
@@ -151,11 +189,90 @@ public class MainActivity extends BaseActivity {
 //            }
 //            app.protocol.is_SET_RAW_RC_received = false;
             //SONG BO ADD END
+
+
+            //check cam status
+            if(app.UseCamera == true && mCam.isStart() == false){
+                mCam.start();
+            }
+            else if(app.UseCamera == false && mCam.isStart() == true){
+                mCam.stop();
+            }
 		}
 		app.FrequentTasks();
 	}
-	
-	public void setStatus(String status) {
+
+    private double PIoutput = 0;
+    private long PISamplingTime = -1;
+    private double PIlastDelta = 0;
+    //samplingInterval in seconds
+    private double PI(double delta, double P, double I, double outputLimit){
+        double output;
+        boolean isIntegration = false;
+        boolean isOverflow = false;
+        long samplingInterval = System.currentTimeMillis() - PISamplingTime;
+        //first call this function
+        //we only use P to calculate the output
+        if(PISamplingTime == -1){
+            PISamplingTime = System.currentTimeMillis();
+            PIoutput = delta * P;
+            PIlastDelta = delta;
+            isIntegration = false;
+        }
+        //use P and I to calculate the output
+        else{
+            double outputDelta;
+            PISamplingTime = System.currentTimeMillis();
+            //interval is too big, reset the PI parameters
+            if(samplingInterval > 100){
+                PISamplingTime = -1;
+                PIoutput = delta * P;
+                isIntegration = false;
+            }
+            else{
+                outputDelta = P * ((delta - PIlastDelta) + samplingInterval / 1000.0 * I * delta);
+                PIlastDelta = delta;
+                PIoutput = PIoutput + outputDelta;
+                isIntegration = true;
+            }
+        }
+        if(PIoutput > outputLimit){
+            output = outputLimit;
+            isOverflow = true;
+        }
+        else if(PIoutput < -outputLimit){
+            output = -outputLimit;
+            isOverflow = true;
+        }
+        else{
+            output = PIoutput;
+            isOverflow = false;
+        }
+        if(isIntegration == true && isOverflow == true){
+            //终止积分作用，防止过饱和
+            PIoutput -= samplingInterval / 1000.0 * I * delta;
+        }
+        return output;
+    }
+    private double calYawOffset(int targetHeading, int currentHeading, double P, double I, int maxRange) {
+       double delta;
+       delta = targetHeading - currentHeading;
+       if(delta < -180){
+           delta += 360;
+       }
+       else if( delta > 180){
+           delta -= 360;
+       }
+       //now delta ranges from -180~+180
+       delta = 100.0 / 180 * delta;
+
+       //now delta ranges from -100~100
+       delta = PI(delta, P, I, maxRange);
+       return delta;
+
+    }
+
+    public void  setStatus(String status) {
 		this.txtStatus.setText(status);
 		app.Status = status;
 	}
@@ -190,6 +307,14 @@ public class MainActivity extends BaseActivity {
 		}
 		setStatus("Ready " + app.comMode.toString());
 	}
+
+    public int getPhoneHeading(){
+        return app.sensors.heading;
+    }
+
+    public int getPlaneHeading(){
+        return mwcHeading;
+    }
 	private void setAuxbtnTxt(ToggleButton mButton, String text) {
 		mButton.setText(text);
 		mButton.setTextOn(text);
@@ -208,7 +333,7 @@ public class MainActivity extends BaseActivity {
 	}
 	public void UpdateUI() {
 		txtHeader.setText(rc.adjustMode.getValue() + rc.get(rc.adjustMode.getId()));
-		txtUIDebug.setText(app.UIDebug ? String.format(debugTextTemplate, rc.toStringNoThrottle(), app.sensors.heading, mwcHeading, delayTime)  : "");
+		txtUIDebug.setText(app.UIDebug ? String.format(debugTextTemplate, rc.toStringNoThrottle(), app.sensors.heading, mwcHeading, delayTime, packageLostRate)  : "");
 		txtStatus.setText(app.Status);
 	}
 	
@@ -248,7 +373,13 @@ public class MainActivity extends BaseActivity {
 	@Override
 	protected void onStop() {
 		super.onStop();
+        Log.d("LifeCycle", "I'm in onStop in mainActivity");
+        //stop camera
+        if(mCam.isStart()){
+            mCam.stop();
+        }
 		app.stop();
+
 	}
 	// ///////////////////Menu///////////////////
 	@Override
